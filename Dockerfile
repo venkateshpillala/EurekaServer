@@ -1,11 +1,25 @@
-# Use OpenJDK 17 as base image
-FROM openjdk:17-jdk-slim
+# ----------- Stage 1: Build the JAR file -------------
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
 
-# Set working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy the built JAR file into the container
-COPY target/QUICK-AMBULANCE-SERVER-0.0.1-SNAPSHOT.jar app.jar
+# Copy only pom.xml and download dependencies (use Docker cache)
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-# Run the JAR file
+# Copy the rest of the code and build the project
+COPY . .
+RUN mvn clean package -DskipTests
+
+# ----------- Stage 2: Run the JAR file -------------
+FROM openjdk:17-jdk-slim
+
+# Create app directory
+WORKDIR /app
+
+# Copy the jar file from the builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Start the Spring Boot app
 ENTRYPOINT ["java", "-jar", "app.jar"]
